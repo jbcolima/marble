@@ -22,9 +22,8 @@ camera.position.set(3, 2, 4);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-
+// Lights
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-
 
 const spot = new THREE.SpotLight(0xffffff, 7.5, 30, Math.PI / 9, 0.25, 1.0);
 spot.position.set(0, 10, 0);
@@ -39,14 +38,29 @@ scene.add(spot);
 const sphereGeometry = new THREE.SphereGeometry(1, 64, 64);
 sphereGeometry.setAttribute('uv2', sphereGeometry.attributes.uv.clone());
 
+// Texture loader with logging
 const loader = new THREE.TextureLoader();
-const colorTex = loader.load('/static/textures/marble/marble_0003_color_1k.jpg');
+function loadTex(url) {
+	console.log('[tex] loading', url);
+	return loader.load(
+		url,
+		(tex) => {
+			console.log('[tex] loaded', url, { w: tex.image?.width, h: tex.image?.height });
+		},
+		undefined,
+		(err) => {
+			console.error('[tex] error', url, err);
+		}
+	);
+}
+
+const colorTex = loadTex('textures/marble/marble_0003_color_1k.jpg');
 colorTex.colorSpace = THREE.SRGBColorSpace;
 colorTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
 
-const normalTex = loader.load('/static/textures/marble/marble_0003_normal_opengl_1k.png');
-const roughnessTex = loader.load('/static/textures/marble/marble_0003_roughness_1k.jpg');
-const aoTex = loader.load('/static/textures/marble/marble_0003_ao_1k.jpg');
+const normalTex = loadTex('textures/marble/marble_0003_normal_opengl_1k.png');
+const roughnessTex = loadTex('textures/marble/marble_0003_roughness_1k.jpg');
+const aoTex = loadTex('textures/marble/marble_0003_ao_1k.jpg');
 
 [colorTex, normalTex, roughnessTex, aoTex].forEach((t) => {
 	if (!t) return;
@@ -66,23 +80,22 @@ const sphereMaterial = new THREE.MeshStandardMaterial({
 });
 
 const ball = new THREE.Mesh(sphereGeometry, sphereMaterial);
-ball.position.y = 3.4; 
+ball.position.y = 3.4;
 ball.castShadow = true;
 scene.add(ball);
 
 spot.target = ball;
 scene.add(spot.target);
 
-
 const planeSize = 8;
 const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize, 1, 1);
 planeGeometry.setAttribute('uv2', planeGeometry.attributes.uv.clone());
 
-const grassColor = loader.load('/static/textures/grass/color.jpg');
+const grassColor = loadTex('textures/grass/color.jpg');
 grassColor.colorSpace = THREE.SRGBColorSpace;
-const grassNormal = loader.load('/static/textures/grass/normal.jpg');
-const grassRoughness = loader.load('/static/textures/grass/roughness.jpg');
-const grassAO = loader.load('/static/textures/grass/ambientOcclusion.jpg');
+const grassNormal = loadTex('textures/grass/normal.jpg');
+const grassRoughness = loadTex('textures/grass/roughness.jpg');
+const grassAO = loadTex('textures/grass/ambientOcclusion.jpg');
 
 [grassColor, grassNormal, grassRoughness, grassAO].forEach((t) => {
 	if (!t) return;
@@ -118,6 +131,7 @@ function onResize() {
 window.addEventListener('resize', onResize);
 
 let lastTime = performance.now();
+let loggedOnce = false;
 function animate(now = performance.now()) {
 	const dt = Math.min((now - lastTime) / 1000, 0.033);
 	lastTime = now;
@@ -127,6 +141,15 @@ function animate(now = performance.now()) {
 
 	controls.update();
 	renderer.render(scene, camera);
+	if (!loggedOnce) {
+		loggedOnce = true;
+		console.log('[scene] rendered once', {
+			tonemapping: renderer.toneMapping,
+			exposure: renderer.toneMappingExposure,
+			shadowMap: renderer.shadowMap.enabled,
+			spotIntensity: spot.intensity
+		});
+	}
 	requestAnimationFrame(animate);
 }
 
