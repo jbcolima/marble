@@ -1,6 +1,6 @@
-# Marble (Three.js + Vite + Electron)
+# Ball (Three.js + Vite + Electron)
 
-A small Three.js scene (marble ball over grass) built with Vite, with optional Electron desktop packaging and Vercel deployment.
+A small Three.js scene ( ball over grass) built with Vite, with optional Electron desktop packaging and Vercel deployment.
 
 ## Requirements
 - Node.js 18+
