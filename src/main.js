@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import GUI from 'lil-gui';
 
 const container = document.getElementById('app');
 
+// Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -13,144 +16,176 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
+// Scene
 const scene = new THREE.Scene();
-scene.background = null;
 
+// Camera
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(3, 2, 4);
 
+// Controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
 // Lights
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-const spot = new THREE.SpotLight(0xffffff, 7.5, 30, Math.PI / 9, 0.25, 1.0);
-spot.position.set(0, 10, 0);
+const spot = new THREE.SpotLight(0xffffff, 8, 30, Math.PI / 6, 0.3, 1.0);
 spot.castShadow = true;
 spot.shadow.mapSize.set(2048, 2048);
-spot.shadow.bias = -0.0006;
+spot.shadow.bias = -0.0005;
 spot.shadow.normalBias = 0.02;
-spot.shadow.camera.near = 0.5;
-spot.shadow.camera.far = 30;
 scene.add(spot);
 
-const sphereGeometry = new THREE.SphereGeometry(1, 64, 64);
-sphereGeometry.setAttribute('uv2', sphereGeometry.attributes.uv.clone());
-
-// Texture loader with logging
-const loader = new THREE.TextureLoader();
-function loadTex(url) {
-	console.log('[tex] loading', url);
-	return loader.load(
-		url,
-		(tex) => {
-			console.log('[tex] loaded', url, { w: tex.image?.width, h: tex.image?.height });
-		},
-		undefined,
-		(err) => {
-			console.error('[tex] error', url, err);
-		}
-	);
-}
-
-const colorTex = loadTex('textures/marble/marble_0003_color_1k.jpg');
-colorTex.colorSpace = THREE.SRGBColorSpace;
-colorTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy?.() || 1);
-
-const normalTex = loadTex('textures/marble/marble_0003_normal_opengl_1k.png');
-const roughnessTex = loadTex('textures/marble/marble_0003_roughness_1k.jpg');
-const aoTex = loadTex('textures/marble/marble_0003_ao_1k.jpg');
-
-[colorTex, normalTex, roughnessTex, aoTex].forEach((t) => {
-	if (!t) return;
-	t.wrapS = THREE.RepeatWrapping;
-	t.wrapT = THREE.RepeatWrapping;
-	t.repeat.set(1, 1);
-});
-
-const sphereMaterial = new THREE.MeshStandardMaterial({
-	color: 0xffffff,
-	metalness: 0.0,
-	roughness: 0.7,
-	map: colorTex,
-	normalMap: normalTex,
-	roughnessMap: roughnessTex,
-	aoMap: aoTex
-});
-
-const ball = new THREE.Mesh(sphereGeometry, sphereMaterial);
-ball.position.y = 3.4;
-ball.castShadow = true;
-scene.add(ball);
-
-spot.target = ball;
-scene.add(spot.target);
-
-const planeSize = 8;
-const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize, 1, 1);
-planeGeometry.setAttribute('uv2', planeGeometry.attributes.uv.clone());
-
-const grassColor = loadTex('textures/grass/color.jpg');
+// Ground (grass)
+const texLoader = new THREE.TextureLoader();
+const grassColor = texLoader.load('./static/textures/grass/color.jpg');
 grassColor.colorSpace = THREE.SRGBColorSpace;
-const grassNormal = loadTex('textures/grass/normal.jpg');
-const grassRoughness = loadTex('textures/grass/roughness.jpg');
-const grassAO = loadTex('textures/grass/ambientOcclusion.jpg');
+const grassNormal = texLoader.load('./static/textures/grass/normal.jpg');
+const grassRoughness = texLoader.load('./static/textures/grass/roughness.jpg');
+const grassAO = texLoader.load('./static/textures/grass/ambientOcclusion.jpg');
 
 [grassColor, grassNormal, grassRoughness, grassAO].forEach((t) => {
-	if (!t) return;
-	t.wrapS = THREE.RepeatWrapping;
-	t.wrapT = THREE.RepeatWrapping;
-	t.repeat.set(4, 4);
+  if (t) {
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(4, 4);
+  }
 });
 
+const planeGeometry = new THREE.PlaneGeometry(8, 8);
+planeGeometry.setAttribute('uv2', planeGeometry.attributes.uv.clone());
+
 const grassMaterial = new THREE.MeshStandardMaterial({
-	color: 0xffffff,
-	metalness: 0.0,
-	roughness: 1.0,
-	map: grassColor,
-	normalMap: grassNormal,
-	roughnessMap: grassRoughness,
-	aoMap: grassAO
+  color: 0xffffff,
+  metalness: 0.0,
+  roughness: 1.0,
+  map: grassColor,
+  normalMap: grassNormal,
+  roughnessMap: grassRoughness,
+  aoMap: grassAO
 });
 
 const ground = new THREE.Mesh(planeGeometry, grassMaterial);
 ground.rotation.x = -Math.PI / 2;
-ground.position.y = 0;
 ground.receiveShadow = true;
 scene.add(ground);
 
+// 🏌️ Parameters
+const params = {
+  golfScale: 0.01,
+  golfHeight: 3.4,
+  bounce: 0.2,
+  // Spotlight settings
+  spotRadius: 5,
+  spotHeight: 8,
+  spotSpeed: 0.5,
+  spotIntensity: 8,
+  spotAngle: 30,
+  spotPenumbra: 0.3,
+  spotSize: 1.0
+};
+
+// 🏐 Load golf ball FBX
+const fbxLoader = new FBXLoader();
+let golf;
+
+const colorTex = texLoader.load('./static/models/golf_ball/golf ball_Bake1_PBR_Diffuse.png');
+colorTex.colorSpace = THREE.SRGBColorSpace;
+const metalTex = texLoader.load('./static/models/golf_ball/golf ball_Bake1_PBR_Metalness.png');
+const roughTex = texLoader.load('./static/models/golf_ball/golf ball_Bake1_PBR_Roughness.png');
+
+fbxLoader.load(
+  './static/models/golf_ball/golf_ball.fbx',
+  (obj) => {
+    golf = obj;
+    golf.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        child.material = new THREE.MeshStandardMaterial({
+          map: colorTex,
+          metalnessMap: metalTex,
+          roughnessMap: roughTex,
+          metalness: 0.0,
+          roughness: 0.35
+        });
+      }
+    });
+
+    golf.scale.set(params.golfScale, params.golfScale, params.golfScale);
+    golf.position.set(0, params.golfHeight, 0);
+    scene.add(golf);
+    spot.target = golf;
+  },
+  undefined,
+  (err) => console.error('Error loading FBX:', err)
+);
+
+// 🧰 GUI
+const gui = new GUI();
+const golfFolder = gui.addFolder('Golf Ball');
+golfFolder.add(params, 'golfScale', 0.001, 0.05, 0.001).name('Size').onChange(() => {
+  if (golf) golf.scale.set(params.golfScale, params.golfScale, params.golfScale);
+});
+golfFolder.add(params, 'golfHeight', 0.1, 5, 0.1).name('Height').onChange(() => {
+  if (golf) golf.position.y = params.golfHeight;
+});
+golfFolder.add(params, 'bounce', 0, 1, 0.01).name('Bounce');
+golfFolder.open();
+
+const spotFolder = gui.addFolder('Spotlight');
+spotFolder.add(params, 'spotRadius', 1, 10, 0.1).name('Orbit Radius');
+spotFolder.add(params, 'spotHeight', 2, 15, 0.1).name('Height');
+spotFolder.add(params, 'spotSpeed', 0, 3, 0.1).name('Orbit Speed');
+spotFolder.add(params, 'spotIntensity', 0, 20, 0.1).name('Intensity').onChange(() => {
+  spot.intensity = params.spotIntensity;
+});
+spotFolder.add(params, 'spotAngle', 5, 90, 1).name('Beam Angle (°)').onChange(() => {
+  spot.angle = THREE.MathUtils.degToRad(params.spotAngle);
+});
+spotFolder.add(params, 'spotPenumbra', 0, 1, 0.01).name('Soft Edge').onChange(() => {
+  spot.penumbra = params.spotPenumbra;
+});
+spotFolder.addColor({ color: '#ffffff' }, 'color').name('Color').onChange((val) => {
+  spot.color.set(val);
+});
+spotFolder.open();
+
+// Resize
 function onResize() {
-	const width = window.innerWidth;
-	const height = window.innerHeight;
-	renderer.setSize(width, height);
-	renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-	camera.aspect = width / height;
-	camera.updateProjectionMatrix();
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  renderer.setSize(width, height);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', onResize);
 
+// Animation
 let lastTime = performance.now();
-let loggedOnce = false;
 function animate(now = performance.now()) {
-	const dt = Math.min((now - lastTime) / 1000, 0.033);
-	lastTime = now;
+  const dt = Math.min((now - lastTime) / 1000, 0.033);
+  lastTime = now;
 
-	ball.rotation.x += 0.6 * dt;
-	ball.rotation.y += 0.8 * dt;
+  if (golf) {
+    // Bounce
+    const t = performance.now() * 0.002;
+    golf.position.y = params.golfHeight + Math.abs(Math.sin(t)) * params.bounce;
 
-	controls.update();
-	renderer.render(scene, camera);
-	if (!loggedOnce) {
-		loggedOnce = true;
-		console.log('[scene] rendered once', {
-			tonemapping: renderer.toneMapping,
-			exposure: renderer.toneMappingExposure,
-			shadowMap: renderer.shadowMap.enabled,
-			spotIntensity: spot.intensity
-		});
-	}
-	requestAnimationFrame(animate);
+    // Circular spotlight orbit
+    const orbitT = performance.now() * 0.001 * params.spotSpeed;
+    spot.position.x = Math.cos(orbitT) * params.spotRadius;
+    spot.position.z = Math.sin(orbitT) * params.spotRadius;
+    spot.position.y = params.spotHeight;
+
+    spot.target.position.copy(golf.position);
+    spot.target.updateMatrixWorld();
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
 }
 
 onResize();
